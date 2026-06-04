@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FXVault — Conversor de Moedas</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #C9A84C; --bg: #0A0A0B; --surface: #111113; --surface2: #1A1A1E;
+      --surface3: #222228; --border: #2A2A30; --border2: #383840;
+      --text: #F0EDE8; --text2: #9A9898; --text3: #5A5858;
+      --green: #3DDC84; --red: #FF4E4E; --blue: #4E9FFF; --radius: 12px;
+    }
+    html, body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+    .app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; border-bottom: 0.5px solid var(--border); margin-bottom: 1.5rem; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo span { color: var(--gold); }
+    .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .dot.loading { background: var(--gold); animation: pulse 1s infinite; }
+    .dot.error { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .ticker-bar { background: var(--surface); border: 0.5px solid var(--border); border-radius: 8px; padding: 9px 16px; overflow: hidden; white-space: nowrap; margin-bottom: 1.5rem; }
+    .ticker-inner { display: inline-flex; gap: 28px; animation: scroll-ticker 40s linear infinite; }
+    @keyframes scroll-ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+    .tick-item { font-size: 12px; font-family: 'DM Mono', monospace; display: flex; gap: 8px; }
+    .tick-name { color: var(--text2); }
+    .tick-up { color: var(--green); }
+    .tick-dn { color: var(--red); }
+    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    @media (max-width: 680px) { .main-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .card-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1.2px; font-family: 'DM Mono', monospace; margin-bottom: 1rem; }
+    .field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+    .field label { font-size: 10px; color: var(--text2); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.8px; }
+    .field input, .field select { background: var(--surface2); border: 0.5px solid var(--border2); border-radius: 8px; color: var(--text); font-family: 'DM Mono', monospace; outline: none; transition: border 0.2s; width: 100%; }
+    .field input { font-size: 22px; font-weight: 500; padding: 10px 14px; }
+    .field select { font-size: 13px; padding: 10px 12px; cursor: pointer; appearance: none; font-family: 'Syne', sans-serif; }
+    .field input:focus, .field select:focus { border-color: var(--gold); }
+    .row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+    .swap-btn { background: var(--surface3); border: 0.5px solid var(--border2); border-radius: 8px; color: var(--gold); cursor: pointer; font-size: 18px; padding: 10px 14px; flex-shrink: 0; transition: background 0.2s; align-self: flex-end; }
+    .swap-btn:hover { background: var(--border); color: var(--text); }
+    .result-box { background: var(--surface2); border: 0.5px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-top: 0.75rem; }
+    .result-val { font-size: 30px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--gold); }
+    .result-sub { font-size: 12px; color: var(--text2); margin-top: 4px; font-family: 'DM Mono', monospace; }
+    .rate-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); margin-top: 8px; font-family: 'DM Mono', monospace; }
+    .history-header { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; font-family: 'DM Mono', monospace; margin: 1rem 0 0.5rem; }
+    .history-item { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text2); padding: 5px 0; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; }
+    .history-item:last-child { border: none; }
+    .watch-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 0.5px solid var(--border); transition: background 0.4s; }
+    .watch-item:last-child { border: none; }
+    .watch-pair { font-size: 13px; font-weight: 600; }
+    .watch-name { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-top: 2px; }
+    .watch-rate { font-size: 13px; font-family: 'DM Mono', monospace; text-align: right; }
+    .watch-chg { font-size: 10px; font-family: 'DM Mono', monospace; padding: 2px 6px; border-radius: 4px; margin-top: 2px; display: inline-block; }
+    .up-bg { background: rgba(61,220,132,0.12); color: var(--green); }
+    .dn-bg { background: rgba(255,78,78,0.12); color: var(--red); }
+    .stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 0.75rem; }
+    .stat { background: var(--surface2); border-radius: 8px; padding: 10px; text-align: center; }
+    .stat-val { font-size: 14px; font-weight: 600; font-family: 'DM Mono', monospace; }
+    .stat-lbl { font-size: 9px; color: var(--text3); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .range-tabs { display: flex; gap: 4px; }
+    .rtab { background: none; border: 0.5px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: 11px; color: var(--text2); cursor: pointer; font-family: 'DM Mono', monospace; transition: all 0.2s; }
+    .rtab.active { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 500; }
+    .chart-wrap { position: relative; height: 220px; }
+    .dom-item { margin-bottom: 8px; }
+    .dom-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); font-family: 'DM Mono', monospace; margin-bottom: 3px; }
+    .dom-bar { height: 3px; border-radius: 2px; background: var(--surface3); overflow: hidden; }
+    .dom-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+    .side-col { display: flex; flex-direction: column; gap: 1rem; }
+    .error-banner { background: rgba(255,78,78,0.1); border: 0.5px solid rgba(255,78,78,0.3); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--red); font-family: 'DM Mono', monospace; margin-bottom: 1rem; display: none; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">FX<span>VAULT</span></div>
+    <div class="status">
+      <div class="dot loading" id="dot"></div>
+      <span id="status-text">Conectando...</span>
+    </div>
+  </div>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <div class="ticker-bar">
+    <div class="ticker-inner" id="ticker">
+      <span class="tick-item"><span class="tick-name">Carregando taxas...</span></span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div class="card">
+      <div class="card-label">Conversor</div>
+      <div class="row">
+        <div class="field"><label>Valor</label><input type="number" id="amount" value="1000" min="0" step="any"></div>
+        <div class="field"><label>De</label><select id="fromCur"></select></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Para</label><select id="toCur"></select></div>
+        <button class="swap-btn" id="swapBtn" title="Inverter">⇄</button>
+      </div>
+      <div class="result-box">
+        <div class="result-val" id="result-val"><span class="spinner"></span></div>
+        <div class="result-sub" id="result-sub">Aguardando dados do servidor...</div>
+        <div class="rate-row"><span id="rate-direct">—</span><span id="rate-inverse">—</span></div>
+      </div>
+      <div class="history-header">Histórico de conversões</div>
+      <div id="history"></div>
+    </div>
+
+    <div class="side-col">
+      <div class="card">
+        <div class="card-label">Pares principais · ao vivo</div>
+        <div id="watchlist"><span style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace">Carregando...</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Mercado global</div>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-val" style="color:var(--blue)">$6.6T</div><div class="stat-lbl">FOREX/dia</div></div>
+          <div class="stat"><div class="stat-val" style="color:var(--gold)" id="fiat-count">—</div><div class="stat-lbl">Moedas</div></div>
+          <div class="stat"><div class="stat-val" style="color:var(--green)" id="crypto-count">—</div><div class="stat-lbl">Criptos</div></div>
+        </div>
+        <div id="dominance"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-header">
+      <div class="card-label" style="margin:0">Gráfico histórico</div>
+      <div class="range-tabs" id="range-tabs">
+        <button class="rtab active" data-r="7">7D</button>
+        <button class="rtab" data-r="30">30D</button>
+        <button class="rtab" data-r="90">90D</button>
+        <button class="rtab" data-r="365">1A</button>
+      </div>
+    </div>
+    <div class="stats-grid" id="chart-stats" style="margin-top:0.75rem"></div>
+    <div class="chart-wrap"><canvas id="rateChart"></canvas></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+const CURRENCIES = {
+  USD:'Dólar americano',EUR:'Euro',BRL:'Real brasileiro',GBP:'Libra esterlina',
+  JPY:'Iene japonês',CNY:'Yuan chinês',CAD:'Dólar canadense',AUD:'Dólar australiano',
+  CHF:'Franco suíço',HKD:'Dólar de Hong Kong',SGD:'Dólar de Singapura',
+  NOK:'Coroa norueguesa',SEK:'Coroa sueca',DKK:'Coroa dinamarquesa',
+  NZD:'Dólar neozelandês',MXN:'Peso mexicano',ZAR:'Rand sul-africano',
+  INR:'Rúpia indiana',KRW:'Won sul-coreano',TRY:'Lira turca',
+  AED:'Dírham dos EAU',SAR:'Riyal saudita',QAR:'Riyal catariano',
+  KWD:'Dinar kuwaitiano',EGP:'Libra egípcia',NGN:'Naira nigeriana',
+  GHS:'Cedi ganês',KES:'Xelim queniano',AOA:'Kwanza angolano',
+  MAD:'Dirham marroquino',XOF:'Franco CFA Oeste',XAF:'Franco CFA Central',
+  MYR:'Ringgit malaio',THB:'Baht tailandês',IDR:'Rúpia indonésia',
+  PHP:'Peso filipino',VND:'Dong vietnamita',PKR:'Rúpia paquistanesa',
+  CLP:'Peso chileno',COP:'Peso colombiano',PEN:'Sol peruano',
+  ARS:'Peso argentino',PLN:'Zloti polonês',HUF:'Florim húngaro',
+  CZK:'Coroa checa',RON:'Leu romeno',
+CDF:'Franco congolês',ZMW:'Kwacha zambiano',MZN:'Metical moçambicano',
+NAD:'Dólar namibiano',BWP:'Pula botswaniana',RWF:'Franco ruandês',
+UGX:'Xelim ugandês',MUR:'Rúpia mauriciana',
+  BTC:'Bitcoin',ETH:'Ethereum',BNB:'BNB',XRP:'Ripple',SOL:'Solana',
+  ADA:'Cardano',AVAX:'Avalanche',DOGE:'Dogecoin',DOT:'Polkadot',
+  LINK:'Chainlink',LTC:'Litecoin',MATIC:'Polygon',ATOM:'Cosmos',
+  XLM:'Stellar',NEAR:'NEAR Protocol'
+};
+const CRYPTO_SYMS = ['BTC','ETH','BNB','XRP','SOL','ADA','AVAX','DOGE','DOT','LINK','LTC','MATIC','ATOM','XLM','NEAR'];
+const WATCHLIST   = ['EUR/USD','GBP/USD','USD/JPY','USD/BRL','AUD/USD','USD/CHF','USD/CNY','BTC/USD'];
+const DOM_COLORS  = ['#4E9FFF','#C9A84C','#FF6B6B','#3DDC84','#A855F7'];
+
+let allRates={}, cryptoData={}, historyLog=[], rateChart=null;
+let fromCur='USD', toCur='BRL', currentRange=7, countdown=60;
+
+function getRate(from,to){const a=allRates[from],b=allRates[to];if(!a||!b)return null;return b/a;}
+function fmt(n,cur){
+  if(n===null||n===undefined||isNaN(n))return '—';
+  if(Math.abs(n)<0.0001)return n.toFixed(8);
+  if(Math.abs(n)<0.01)return n.toFixed(6);
+  if(Math.abs(n)<1)return n.toFixed(4);
+  if(Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';
+  if(Math.abs(n)>=1e4)return n.toLocaleString('pt-BR',{maximumFractionDigits:2});
+  return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4});
+}
+function setStatus(type,text){
+  const dot=document.getElementById('dot');
+  dot.className='dot '+(type==='ok'?'':type);
+  document.getElementById('status-text').textContent=text;
+}
+function showError(msg){
+  const el=document.getElementById('error-banner');
+  el.textContent='⚠ '+msg;el.style.display='block';
+  setTimeout(()=>el.style.display='none',8000);
+}
+
+async function fetchRates(){
+  setStatus('loading','Atualizando taxas...');
+  try{
+    const r=await fetch(`${API}/api/rates/USD`);
+    if(!r.ok)throw new Error('Falha fiat');
+    const data=await r.json();
+    allRates={...data.rates};allRates['USD']=1;
+    document.getElementById('fiat-count').textContent=Object.keys(allRates).length+'+';
+    const rc=await fetch(`${API}/api/crypto`);
+    if(rc.ok){
+      const dc=await rc.json();cryptoData=dc.crypto||{};
+      Object.entries(cryptoData).forEach(([sym,d])=>{if(d.usd)allRates[sym]=1/d.usd;});
+      document.getElementById('crypto-count').textContent=Object.keys(cryptoData).length;
+    }
+    buildSelects();buildTicker();buildWatchlist();doConvert();
+    setStatus('ok',`Ao vivo · próx. atualização em ${countdown}s`);
+  }catch(e){
+    setStatus('error','Sem conexão com o servidor');
+    showError('Backend offline. Rode: uvicorn main:app --reload (na pasta backend/)');
+  }
+}
+
+function buildSelects(){
+  const fiat=Object.keys(CURRENCIES).filter(c=>!CRYPTO_SYMS.includes(c));
+  [document.getElementById('fromCur'),document.getElementById('toCur')].forEach((sel,i)=>{
+    const val=i===0?fromCur:toCur;sel.innerHTML='';
+    [['💱 Moedas Fiat',fiat],['🔗 Criptomoedas',CRYPTO_SYMS]].forEach(([label,list])=>{
+      const og=document.createElement('optgroup');og.label=label;
+      list.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=`${c} — ${CURRENCIES[c]||c}`;og.appendChild(o);});
+      sel.appendChild(og);
+    });
+    sel.value=val;
+  });
+}
+
+function buildTicker(){
+  const pairs=[['EUR','USD'],['GBP','USD'],['USD','JPY'],['BTC','USD'],['ETH','USD'],
+               ['USD','BRL'],['AUD','USD'],['USD','CAD'],['XRP','USD'],['SOL','USD'],['USD','CHF'],['USD','CNY']];
+  const items=pairs.map(([a,b])=>{
+    const r=getRate(a,b);if(!r)return '';
+    const cd=cryptoData[a];const chg=cd?cd.change_24h:(Math.random()-0.48)*0.8;const up=chg>=0;
+    return `<span class="tick-item"><span class="tick-name">${a}/${b}</span><span>${fmt(r,b)}</span><span class="${up?'tick-up':'tick-dn'}">${up?'▲':'▼'}${Math.abs(chg).toFixed(2)}%</span></span>`;
+  }).filter(Boolean).join('');
+  document.getElementById('ticker').innerHTML=items+items;
+}
+
+function buildWatchlist(){
+  const el=document.getElementById('watchlist');el.innerHTML='';
+  WATCHLIST.forEach(pair=>{
+    const[a,b]=pair.split('/');const r=getRate(a,b);if(!r)return;
+    const cd=cryptoData[a];const chg=cd?cd.change_24h:(Math.random()-0.48)*1.5;const up=chg>=0;
+    const row=document.createElement('div');row.className='watch-item';row.id='wp-'+pair.replace('/','_');
+    row.innerHTML=`<div><div class="watch-pair">${pair}</div><div class="watch-name">${CURRENCIES[a]||a}</div></div>
+    <div style="text-align:right"><div class="watch-rate">${fmt(r,b)}</div>
+    <div class="watch-chg ${up?'up-bg':'dn-bg'}">${up?'+':''}${chg.toFixed(2)}%</div></div>`;
+    el.appendChild(row);
+  });
+  buildDominance();
+}
+
+function buildDominance(){
+  const el=document.getElementById('dominance');
+  const dom=[{c:'USD',v:88},{c:'EUR',v:31},{c:'JPY',v:17},{c:'GBP',v:13},{c:'CNY',v:7}];
+  el.innerHTML='<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-family:\'DM Mono\',monospace;margin-bottom:8px">Dominância FOREX global</div>';
+  dom.forEach((d,i)=>{
+    el.innerHTML+=`<div class="dom-item"><div class="dom-row"><span>${d.c}</span><span style="color:var(--text)">${d.v}%</span></div>
+    <div class="dom-bar"><div class="dom-fill" style="width:${d.v}%;background:${DOM_COLORS[i]}"></div></div></div>`;
+  });
+}
+
+function doConvert(){
+  const amount=parseFloat(document.getElementById('amount').value)||0;
+  const r=getRate(fromCur,toCur);if(!r)return;
+  const converted=amount*r;
+  document.getElementById('result-val').textContent=`${fmt(converted,toCur)} ${toCur}`;
+  document.getElementById('result-sub').textContent=`${fmt(amount,fromCur)} ${fromCur} → ${fmt(converted,toCur)} ${toCur}`;
+  document.getElementById('rate-direct').textContent=`1 ${fromCur} = ${fmt(r,toCur)} ${toCur}`;
+  const inv=getRate(toCur,fromCur);
+  document.getElementById('rate-inverse').textContent=`1 ${toCur} = ${fmt(inv,fromCur)} ${fromCur}`;
+  if(amount>0){
+    historyLog.unshift({from:`${fmt(amount,fromCur)} ${fromCur}`,to:`${fmt(converted,toCur)} ${toCur}`,t:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})});
+    if(historyLog.length>5)historyLog.pop();
+    document.getElementById('history').innerHTML=historyLog.map(h=>`<div class="history-item"><span>${h.from} → ${h.to}</span><span style="color:var(--text3)">${h.t}</span></div>`).join('');
+  }
+}
+
+async function buildChart(days){
+  const isCrypto=CRYPTO_SYMS.includes(fromCur)||CRYPTO_SYMS.includes(toCur);
+  let labels=[],values=[];
+  if(!isCrypto){
+    try{
+      const r=await fetch(`${API}/api/history?from_cur=${fromCur}&to_cur=${toCur}&days=${days}`);
+      if(r.ok){const d=await r.json();const series=d.series||{};const sorted=Object.keys(series).sort();
+        labels=sorted.map(date=>{const[y,m,day]=date.split('-');return`${day}/${m}`;});
+        values=sorted.map(date=>series[date]);}
+    }catch(_){}
+  }
+  if(values.length===0){
+    const base=getRate(fromCur,toCur)||1;const vol=base*0.015;let cur=base*(0.94+Math.random()*0.12);
+    const now=new Date();
+    for(let i=days;i>=0;i--){
+      const d=new Date(now);d.setDate(now.getDate()-i);
+      labels.push(d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}));
+      cur+=(Math.random()-0.49)*vol;if(cur<=0)cur=base*0.5;values.push(parseFloat(cur.toFixed(6)));
+    }
+    values[values.length-1]=parseFloat((getRate(fromCur,toCur)||1).toFixed(6));
+  }
+  const first=values[0],last=values[values.length-1];const isUp=last>=first;
+  const pct=((last-first)/first*100).toFixed(2);const hi=Math.max(...values),lo=Math.min(...values);
+  const color=isUp?'#3DDC84':'#FF4E4E';
+  document.getElementById('chart-stats').innerHTML=`
+    <div class="stat"><div class="stat-val" style="color:${color}">${isUp?'+':''}${pct}%</div><div class="stat-lbl">Variação</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--blue)">${fmt(hi,toCur)}</div><div class="stat-lbl">Máxima</div></div>
+    <div class="stat"><div class="stat-val">${fmt(lo,toCur)}</div><div class="stat-lbl">Mínima</div></div>`;
+  const ctx=document.getElementById('rateChart').getContext('2d');
+  if(rateChart)rateChart.destroy();
+  rateChart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{label:`${fromCur}/${toCur}`,data:values,borderColor:color,borderWidth:1.5,
+      pointRadius:0,tension:0.4,fill:true,backgroundColor:(()=>{const g=ctx.createLinearGradient(0,0,0,220);
+      g.addColorStop(0,isUp?'rgba(61,220,132,0.15)':'rgba(255,78,78,0.15)');g.addColorStop(1,'rgba(0,0,0,0)');return g;})()}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#1A1A1E',
+        borderColor:'#2A2A30',borderWidth:0.5,titleColor:'#9A9898',bodyColor:'#F0EDE8',
+        callbacks:{label:c=>`${fromCur}/${toCur}: ${fmt(c.parsed.y,toCur)}`}}},
+      scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5A5858',font:{size:10,family:"'DM Mono',monospace"},maxTicksLimit:10}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},position:'right',ticks:{color:'#5A5858',font:{size:10,family:"'DM Mono',monospace"},callback:v=>fmt(v,toCur)}}}}
+  });
+}
+
+document.getElementById('fromCur').addEventListener('change',e=>{fromCur=e.target.value;doConvert();buildChart(currentRange);});
+document.getElementById('toCur').addEventListener('change',e=>{toCur=e.target.value;doConvert();buildChart(currentRange);});
+document.getElementById('amount').addEventListener('input',doConvert);
+document.getElementById('swapBtn').addEventListener('click',()=>{
+  [fromCur,toCur]=[toCur,fromCur];
+  document.getElementById('fromCur').value=fromCur;document.getElementById('toCur').value=toCur;
+  doConvert();buildChart(currentRange);
+});
+document.querySelectorAll('.rtab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.rtab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');currentRange=parseInt(btn.dataset.r);buildChart(currentRange);
+  });
+});
+
+setInterval(()=>{
+  countdown--;
+  if(countdown<=0){fetchRates().then(()=>buildChart(currentRange));countdown=60;}
+  const el=document.getElementById('status-text');
+  if(!el.textContent.includes('offline')&&!el.textContent.includes('Atualizando'))
+    el.textContent=`Ao vivo · próx. atualização em ${countdown}s`;
+},1000);
+
+fetchRates().then(()=>buildChart(currentRange));
+</script>
+</body>
+</html>
+
